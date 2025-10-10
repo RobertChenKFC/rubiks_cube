@@ -4,37 +4,61 @@ use crate::turn::{CubeFace, Direction, Turn, Turns};
 
 use std::fmt;
 use std::fmt::{Display, Formatter};
+use std::hash;
 
 const NUM_FACES: usize = 6;
-#[derive(Clone, Hash, PartialEq, Eq, Debug)]
-pub struct Cube<const N: usize>([Face<N>; NUM_FACES]);
-
-impl<const N: usize> Cube<N> {
-    pub fn new() -> Cube<N> {
-        Cube([
-            Face::new(Color::White),
-            Face::new(Color::Orange),
-            Face::new(Color::Green),
-            Face::new(Color::Red),
-            Face::new(Color::Blue),
-            Face::new(Color::Yellow),
+pub trait Cube<const N: usize>:
+    Sized + Clone + hash::Hash + PartialEq + Eq + fmt::Debug + Into<RefCube<N>>
+{
+    fn new() -> Self {
+        Cube::<N>::from_colors(&[
+            (CubeFace::Up, Color::White),
+            (CubeFace::Left, Color::Orange),
+            (CubeFace::Front, Color::Green),
+            (CubeFace::Right, Color::Red),
+            (CubeFace::Back, Color::Blue),
+            (CubeFace::Down, Color::Yellow),
         ])
     }
 
-    pub fn parse_str(mut s: &str) -> Result<Cube<N>, ParsingErr> {
-        let mut cube = Cube::new();
-        for face in 0..NUM_FACES {
-            for row in 0..N {
-                for col in 0..N {
-                    let (color, rem) = Color::parse_str(s)?;
-                    *cube.0[face].at_mut(&Coord { row, col }) = color;
-                    s = rem;
-                }
-            }
+    fn from_colors(face_to_color: &[(CubeFace, Color); NUM_FACES]) -> Self;
+
+    fn parse_str(s: &str) -> Result<Self, ParsingErr>;
+
+    fn apply_turn(&mut self, turn: &Turn);
+
+    fn apply_turns(&mut self, turns: &Turns) {
+        for turn in turns.iter() {
+            self.apply_turn(turn);
         }
-        Ok(cube)
+    }
+
+    fn from_corner_colors(&self) -> Self {
+        let ref_cube: RefCube<N> = self.clone().into();
+        let back_color = ref_cube.0[CubeFace::Back as usize].at(&Coord {
+            row: N - 1,
+            col: N - 1,
+        });
+        let left_color = ref_cube.0[CubeFace::Left as usize]
+            .at(&Coord { row: N - 1, col: 0 });
+        let down_color = ref_cube.0[CubeFace::Down as usize]
+            .at(&Coord { row: N - 1, col: 0 });
+        let front_color = back_color.opposite();
+        let right_color = left_color.opposite();
+        let up_color = down_color.opposite();
+        Cube::from_colors(&[
+            (CubeFace::Up, up_color),
+            (CubeFace::Left, left_color),
+            (CubeFace::Front, front_color),
+            (CubeFace::Right, right_color),
+            (CubeFace::Back, back_color),
+            (CubeFace::Down, down_color),
+        ])
     }
 }
+
+#[derive(Clone, Hash, PartialEq, Eq, Debug)]
+pub struct RefCube<const N: usize>([Face<N>; NUM_FACES]);
 
 struct SideInfo {
     face: CubeFace,
@@ -43,7 +67,18 @@ struct SideInfo {
     flip_varying_idx: bool,
 }
 
-impl<const N: usize> Cube<N> {
+impl<const N: usize> RefCube<N> {
+    fn default() -> Self {
+        RefCube([
+            Face::new(Color::White),
+            Face::new(Color::White),
+            Face::new(Color::White),
+            Face::new(Color::White),
+            Face::new(Color::White),
+            Face::new(Color::White),
+        ])
+    }
+
     fn display_empty_row(&self, f: &mut Formatter) -> fmt::Result {
         for _ in 0..N {
             write!(f, "  ")?;
@@ -259,13 +294,13 @@ impl<const N: usize> Cube<N> {
         for varying_idx in 0..N {
             let mut colors = [Color::White; NUM_FACES];
             for (i, side_info) in side_infos.iter().enumerate() {
-                let coord = Cube::<N>::build_coord(varying_idx, side_info);
+                let coord = RefCube::<N>::build_coord(varying_idx, side_info);
                 colors[i] = self.0[side_info.face as usize].at(&coord);
             }
             for (i, color) in colors.iter().enumerate() {
                 let next_side_info = &side_infos[(i + shift) % NUM_FACES];
                 let next_coord =
-                    Cube::<N>::build_coord(varying_idx, next_side_info);
+                    RefCube::<N>::build_coord(varying_idx, next_side_info);
                 *self.0[next_side_info.face as usize].at_mut(&next_coord) =
                     *color;
             }
@@ -296,21 +331,9 @@ impl<const N: usize> Cube<N> {
         for row in 0..N {
             for col in 0..N {
                 let coord = Coord { row, col };
-                *face.at_mut(&Cube::<N>::get_new_coord(&coord, turn.dir)) =
+                *face.at_mut(&RefCube::<N>::get_new_coord(&coord, turn.dir)) =
                     old_face.at(&coord);
             }
-        }
-    }
-
-    pub fn apply_turn(&mut self, turn: &Turn) {
-        assert!(turn.num_layers == 1);
-        self.cycle_sides(turn);
-        self.rotate_face(turn);
-    }
-
-    pub fn apply_turns(&mut self, turns: &Turns) {
-        for turn in turns.iter() {
-            self.apply_turn(turn);
         }
     }
 
@@ -322,34 +345,39 @@ impl<const N: usize> Cube<N> {
         }
         true
     }
+}
 
-    pub fn fill_with_corner_colors(&mut self) {
-        let back_color = self.0[CubeFace::Back as usize].at(&Coord {
-            row: N - 1,
-            col: N - 1,
-        });
-        let left_color =
-            self.0[CubeFace::Left as usize].at(&Coord { row: N - 1, col: 0 });
-        let down_color =
-            self.0[CubeFace::Down as usize].at(&Coord { row: N - 1, col: 0 });
-        let front_color = back_color.opposite();
-        let right_color = left_color.opposite();
-        let up_color = down_color.opposite();
-        let face_and_colors = [
-            (CubeFace::Up, up_color),
-            (CubeFace::Left, left_color),
-            (CubeFace::Front, front_color),
-            (CubeFace::Right, right_color),
-            (CubeFace::Back, back_color),
-            (CubeFace::Down, down_color),
-        ];
-        for (face, color) in face_and_colors {
-            self.0[face as usize].fill(color);
+impl<const N: usize> Cube<N> for RefCube<N> {
+    fn from_colors(face_to_color: &[(CubeFace, Color); NUM_FACES]) -> Self {
+        let mut cube = RefCube::default();
+        for (face, color) in face_to_color {
+            cube.0[*face as usize].fill(*color);
         }
+        cube
+    }
+
+    fn parse_str(mut s: &str) -> Result<Self, ParsingErr> {
+        let mut cube = RefCube::new();
+        for face in 0..NUM_FACES {
+            for row in 0..N {
+                for col in 0..N {
+                    let (color, rem) = Color::parse_str(s)?;
+                    *cube.0[face].at_mut(&Coord { row, col }) = color;
+                    s = rem;
+                }
+            }
+        }
+        Ok(cube)
+    }
+
+    fn apply_turn(&mut self, turn: &Turn) {
+        assert!(turn.num_layers == 1);
+        self.cycle_sides(turn);
+        self.rotate_face(turn);
     }
 }
 
-impl<const N: usize> Display for Cube<N> {
+impl<const N: usize> Display for RefCube<N> {
     fn fmt(&self, f: &mut Formatter) -> fmt::Result {
         self.display_faces(f, &[None, Some(CubeFace::Up)])?;
         self.display_faces(
@@ -372,9 +400,9 @@ mod tests {
     #[test]
     fn test_t_perm() {
         let turns = Turns::parse_str("RUR'U'R'FR2U'R'U'RUR'F'").unwrap();
-        let mut cube = Cube::<3>::new();
+        let mut cube = RefCube::<3>::new();
         cube.apply_turns(&turns);
-        let cube_ref = Cube::<3>::parse_str(
+        let cube_ref = RefCube::<3>::parse_str(
             "WWWWWWWWWOROOOOOOOGGRGGGGGGBOGRRRRRRRBBBBBBBBYYYYYYYYY",
         )
         .unwrap();
@@ -387,9 +415,9 @@ mod tests {
             "FLFU'RUF2L2U'L'BD'B'L2UB2R'DRD'R'DRUR'D'RDR'D'RU'B2",
         )
         .unwrap();
-        let mut cube = Cube::<3>::new();
+        let mut cube = RefCube::<3>::new();
         cube.apply_turns(&turns);
-        let cube_ref = Cube::<3>::parse_str(
+        let cube_ref = RefCube::<3>::parse_str(
             "GGGGWWGWGYYYOOYYOYRGRRGGRRRWRWRRWWWWOOOOBBOBOBBBYYBBYB",
         )
         .unwrap();

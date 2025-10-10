@@ -5,7 +5,7 @@ mod row;
 mod solver;
 mod turn;
 
-use cube::Cube;
+use cube::{Cube, RefCube};
 use solver::Solver;
 use turn::Turns;
 
@@ -23,7 +23,7 @@ fn main() -> io::Result<()> {
         io::stdin().read_line(&mut line)?;
         let turns = Turns::parse_str(line.trim()).unwrap();
 
-        let mut cube: Cube<2> = Cube::new();
+        let mut cube: RefCube<2> = RefCube::new();
         cube.apply_turns(&turns);
         println!("{}", cube);
 
