@@ -7,7 +7,7 @@ use std::io::Write;
 use std::marker::PhantomData;
 
 pub struct Solver<const N: usize, C: Cube<N>> {
-    cube_type: PhantomData<C>
+    cube_type: PhantomData<C>,
 }
 // TODO: I cannot figure out how to move this type alias inside the impl block
 // of solver without the compiler complaining. Something to do with "inherent
@@ -25,10 +25,7 @@ impl<const N: usize, C: Cube<N>> Solver<N, C> {
         }
     }
 
-    fn get_all_states_within(
-        cube: &C,
-        len: usize,
-    ) -> HashMap<C, Option<Turn>> {
+    fn get_all_states_within(cube: &C, len: usize) -> HashMap<C, Option<Turn>> {
         let all_turns = Turn::all_turns::<N>();
         // A map from a cube state to a `Turn`, representing the previous turn
         // that brought us to this state. The initial state does not have a
@@ -59,10 +56,7 @@ impl<const N: usize, C: Cube<N>> Solver<N, C> {
         cube_states
     }
 
-    fn get_turns_from_state(
-        cube: &C,
-        map: &HashMap<C, Option<Turn>>,
-    ) -> Turns {
+    fn get_turns_from_state(cube: &C, map: &HashMap<C, Option<Turn>>) -> Turns {
         let mut turns = Vec::new();
         let mut cube = cube.clone();
         loop {
@@ -79,10 +73,7 @@ impl<const N: usize, C: Cube<N>> Solver<N, C> {
         }
     }
 
-    fn get_turns_to_state(
-        cube: &C,
-        map: &HashMap<C, Option<Turn>>,
-    ) -> Turns {
+    fn get_turns_to_state(cube: &C, map: &HashMap<C, Option<Turn>>) -> Turns {
         let mut turns = Solver::get_turns_from_state(cube, map).0;
         turns.reverse();
         for turn in &mut turns {

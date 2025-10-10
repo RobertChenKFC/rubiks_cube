@@ -7,7 +7,9 @@ use std::fmt::{Display, Formatter};
 use std::hash;
 
 const NUM_FACES: usize = 6;
-pub trait Cube<const N: usize> : Sized + Clone + hash::Hash + PartialEq + Eq + fmt::Debug + Into<RefCube<N>> {
+pub trait Cube<const N: usize>:
+    Sized + Clone + hash::Hash + PartialEq + Eq + fmt::Debug + Into<RefCube<N>>
+{
     fn new() -> Self {
         Cube::<N>::from_colors(&[
             (CubeFace::Up, Color::White),
@@ -37,10 +39,10 @@ pub trait Cube<const N: usize> : Sized + Clone + hash::Hash + PartialEq + Eq + f
             row: N - 1,
             col: N - 1,
         });
-        let left_color =
-            ref_cube.0[CubeFace::Left as usize].at(&Coord { row: N - 1, col: 0 });
-        let down_color =
-            ref_cube.0[CubeFace::Down as usize].at(&Coord { row: N - 1, col: 0 });
+        let left_color = ref_cube.0[CubeFace::Left as usize]
+            .at(&Coord { row: N - 1, col: 0 });
+        let down_color = ref_cube.0[CubeFace::Down as usize]
+            .at(&Coord { row: N - 1, col: 0 });
         let front_color = back_color.opposite();
         let right_color = left_color.opposite();
         let up_color = down_color.opposite();
@@ -333,7 +335,7 @@ impl<const N: usize> RefCube<N> {
                     old_face.at(&coord);
             }
         }
-    } 
+    }
 
     pub fn is_solved(&self) -> bool {
         for face in &self.0 {
