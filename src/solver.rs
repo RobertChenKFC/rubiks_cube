@@ -26,7 +26,7 @@ impl<const N: usize, C: Cube<N>> Solver<N, C> {
     }
 
     fn get_all_states_within(cube: &C, len: usize) -> HashMap<C, Option<Turn>> {
-        let all_turns = Turn::all_turns::<N>();
+        let all_turns = Turn::all_required_turns::<N>();
         // A map from a cube state to a `Turn`, representing the previous turn
         // that brought us to this state. The initial state does not have a
         // previous turn.

@@ -1,3 +1,5 @@
+use crate::cube::NUM_FACES;
+
 use std::fmt;
 use std::fmt::{Display, Formatter};
 use std::slice;
@@ -32,6 +34,15 @@ pub enum ParsingErr {
     InvalidFace,
 }
 
+const ALL_FACES: [CubeFace; NUM_FACES] = [
+    CubeFace::Up,
+    CubeFace::Front,
+    CubeFace::Right,
+    CubeFace::Down,
+    CubeFace::Back,
+    CubeFace::Left,
+];
+
 impl Turn {
     pub fn parse_str(s: &str) -> Result<(Turn, &str), ParsingErr> {
         let mut chars = s.chars();
@@ -65,21 +76,8 @@ impl Turn {
         return Ok((turn, chars.as_str()));
     }
 
-    pub fn all_turns<const N: usize>() -> Turns {
-        // TODO: add a boolean flag to toggle full turns
+    fn all_turns_impl<const N: usize>(all_faces: &[CubeFace]) -> Turns {
         let mut turns = Vec::new();
-        let mut all_faces: &[CubeFace] = &[
-            CubeFace::Up,
-            CubeFace::Front,
-            CubeFace::Right,
-            CubeFace::Down,
-            CubeFace::Back,
-            CubeFace::Left,
-        ];
-        // 2x2 cubes only need the R, F, U faces to reach any cube state
-        if N == 2 {
-            all_faces = &all_faces[..3];
-        }
         for face in all_faces {
             for dir in [
                 Direction::Clockwise,
@@ -96,6 +94,20 @@ impl Turn {
             }
         }
         Turns(turns)
+    }
+
+    pub fn all_turns<const N: usize>() -> Turns {
+        Turn::all_turns_impl::<N>(&ALL_FACES)
+    }
+
+    pub fn all_required_turns<const N: usize>() -> Turns {
+        let all_faces = if N == 2 {
+            // 2x2 cubes only need the R, F, U faces to reach any cube state
+            &ALL_FACES[..3]
+        } else {
+            &ALL_FACES
+        };
+        Turn::all_turns_impl::<N>(all_faces)
     }
 
     pub fn inverse(&self) -> Turn {

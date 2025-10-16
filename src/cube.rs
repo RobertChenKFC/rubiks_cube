@@ -6,7 +6,7 @@ use std::fmt;
 use std::fmt::{Display, Formatter};
 use std::hash;
 
-const NUM_FACES: usize = 6;
+pub const NUM_FACES: usize = 6;
 pub trait Cube<const N: usize>:
     Sized + Clone + hash::Hash + PartialEq + Eq + fmt::Debug + Into<RefCube<N>>
 {
@@ -24,6 +24,11 @@ pub trait Cube<const N: usize>:
     fn from_colors(face_to_color: &[(CubeFace, Color); NUM_FACES]) -> Self;
 
     fn parse_str(s: &str) -> Result<Self, ParsingErr>;
+
+    fn to_color_string(&self) -> String {
+        let ref_cube: RefCube<N> = self.clone().into();
+        ref_cube.to_color_string()
+    }
 
     fn apply_turn(&mut self, turn: &Turn);
 
@@ -57,8 +62,23 @@ pub trait Cube<const N: usize>:
     }
 }
 
+pub struct DisplayCube<'a, const N: usize, C: Cube<N>>(&'a C);
+
+impl<'a, const N: usize, C: Cube<N>> DisplayCube<'a, N, C> {
+    pub fn new(cube: &'a C) -> DisplayCube<'a, N, C> {
+        DisplayCube(cube)
+    }
+}
+
+impl<'a, const N: usize, C: Cube<N>> Display for DisplayCube<'a, N, C> {
+    fn fmt(&self, f: &mut Formatter) -> fmt::Result {
+        let ref_cube: RefCube<N> = self.0.clone().into();
+        ref_cube.fmt(f)
+    }
+}
+
 #[derive(Clone, Hash, PartialEq, Eq, Debug)]
-pub struct RefCube<const N: usize>([Face<N>; NUM_FACES]);
+pub struct RefCube<const N: usize>(pub [Face<N>; NUM_FACES]);
 
 struct SideInfo {
     face: CubeFace,
@@ -368,6 +388,19 @@ impl<const N: usize> Cube<N> for RefCube<N> {
             }
         }
         Ok(cube)
+    }
+
+    fn to_color_string(&self) -> String {
+        let mut s = String::new();
+        for face in 0..NUM_FACES {
+            for row in 0..N {
+                for col in 0..N {
+                    let color = self.0[face].at(&Coord { row, col });
+                    s.push(color.to_char());
+                }
+            }
+        }
+        s
     }
 
     fn apply_turn(&mut self, turn: &Turn) {

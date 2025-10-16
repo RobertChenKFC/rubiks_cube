@@ -1,11 +1,13 @@
 mod color;
 mod cube;
+mod cube2;
 mod face;
 mod row;
 mod solver;
 mod turn;
 
-use cube::{Cube, RefCube};
+use cube::{Cube, DisplayCube, RefCube};
+use cube2::Cube2;
 use solver::Solver;
 use turn::Turns;
 
@@ -23,12 +25,8 @@ fn main() -> io::Result<()> {
         io::stdin().read_line(&mut line)?;
         let turns = Turns::parse_str(line.trim()).unwrap();
 
-        let mut cube: RefCube<2> = RefCube::new();
+        let mut cube = Cube2::new();
         cube.apply_turns(&turns);
-        println!("{}", cube);
-
-        let turns = Solver::solve(&cube);
-        print!("Solved! Solution: {}", turns);
-        println!();
+        println!("{}", DisplayCube::new(&cube));
     }
 }
