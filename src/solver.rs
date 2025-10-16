@@ -38,8 +38,6 @@ impl<const N: usize, C: Cube<N>> Solver<N, C> {
         queue.push_back((cube.clone(), 0));
         let mut cube_states_processed = 0;
         while !queue.is_empty() {
-            // DEBUG
-            // print!("\rCube states processed: {}", cube_states_processed);
             cube_states_processed += 1;
             io::stdout().flush().expect("Flush error");
 
@@ -53,8 +51,6 @@ impl<const N: usize, C: Cube<N>> Solver<N, C> {
                 }
             }
         }
-        // DEBUG
-        // println!();
         cube_states
     }
 
