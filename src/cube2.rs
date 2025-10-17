@@ -100,6 +100,8 @@ const CORNER_COLORS: [[Color; NUM_CORNER_FACES]; NUM_CORNERS] = [
     [Color::White, Color::Blue, Color::Red],
     [Color::White, Color::Red, Color::Green],
 ];
+const NUM_CORNERS_PER_TURN: usize = 4;
+const NUM_TURNS: usize = 18;
 
 impl Cube2 {
     fn apply_orientation(
@@ -162,8 +164,7 @@ impl Cube2 {
 
     pub fn gen_turn_table() {
         // 6 faces, 3 directions
-        const NUM_TURNS: usize = 18;
-        let mut table = [[(0, Orientation::Nothing, 0); 4]; 18];
+        let mut table = [[(0, Orientation::Nothing, 0); 4]; NUM_TURNS];
         for turn in Turn::all_turns::<2>().iter() {
             let mut cube = Cube2::new();
             cube.apply_turn_ref(turn);
@@ -204,6 +205,118 @@ impl From<Turn> for usize {
     }
 }
 
+const TURN_TABLE: [[(usize, Orientation, usize); NUM_CORNERS_PER_TURN];
+    NUM_TURNS] = [
+    [
+        (5, Orientation::Nothing, 4),
+        (7, Orientation::Nothing, 5),
+        (4, Orientation::Nothing, 6),
+        (6, Orientation::Nothing, 7),
+    ],
+    [
+        (1, Orientation::Counterclockwise, 0),
+        (5, Orientation::Clockwise, 1),
+        (0, Orientation::Clockwise, 4),
+        (4, Orientation::Counterclockwise, 5),
+    ],
+    [
+        (3, Orientation::Counterclockwise, 1),
+        (7, Orientation::Clockwise, 3),
+        (1, Orientation::Clockwise, 5),
+        (5, Orientation::Counterclockwise, 7),
+    ],
+    [
+        (6, Orientation::Clockwise, 2),
+        (2, Orientation::Counterclockwise, 3),
+        (7, Orientation::Counterclockwise, 6),
+        (3, Orientation::Clockwise, 7),
+    ],
+    [
+        (4, Orientation::Clockwise, 0),
+        (0, Orientation::Counterclockwise, 2),
+        (6, Orientation::Counterclockwise, 4),
+        (2, Orientation::Clockwise, 6),
+    ],
+    [
+        (2, Orientation::Nothing, 0),
+        (0, Orientation::Nothing, 1),
+        (3, Orientation::Nothing, 2),
+        (1, Orientation::Nothing, 3),
+    ],
+    [
+        (7, Orientation::Nothing, 4),
+        (6, Orientation::Nothing, 5),
+        (5, Orientation::Nothing, 6),
+        (4, Orientation::Nothing, 7),
+    ],
+    [
+        (5, Orientation::Nothing, 0),
+        (4, Orientation::Nothing, 1),
+        (1, Orientation::Nothing, 4),
+        (0, Orientation::Nothing, 5),
+    ],
+    [
+        (7, Orientation::Nothing, 1),
+        (5, Orientation::Nothing, 3),
+        (3, Orientation::Nothing, 5),
+        (1, Orientation::Nothing, 7),
+    ],
+    [
+        (7, Orientation::Nothing, 2),
+        (6, Orientation::Nothing, 3),
+        (3, Orientation::Nothing, 6),
+        (2, Orientation::Nothing, 7),
+    ],
+    [
+        (6, Orientation::Nothing, 0),
+        (4, Orientation::Nothing, 2),
+        (2, Orientation::Nothing, 4),
+        (0, Orientation::Nothing, 6),
+    ],
+    [
+        (3, Orientation::Nothing, 0),
+        (2, Orientation::Nothing, 1),
+        (1, Orientation::Nothing, 2),
+        (0, Orientation::Nothing, 3),
+    ],
+    [
+        (6, Orientation::Nothing, 4),
+        (4, Orientation::Nothing, 5),
+        (7, Orientation::Nothing, 6),
+        (5, Orientation::Nothing, 7),
+    ],
+    [
+        (4, Orientation::Counterclockwise, 0),
+        (0, Orientation::Clockwise, 1),
+        (5, Orientation::Clockwise, 4),
+        (1, Orientation::Counterclockwise, 5),
+    ],
+    [
+        (5, Orientation::Counterclockwise, 1),
+        (1, Orientation::Clockwise, 3),
+        (7, Orientation::Clockwise, 5),
+        (3, Orientation::Counterclockwise, 7),
+    ],
+    [
+        (3, Orientation::Clockwise, 2),
+        (7, Orientation::Counterclockwise, 3),
+        (2, Orientation::Counterclockwise, 6),
+        (6, Orientation::Clockwise, 7),
+    ],
+    [
+        (2, Orientation::Clockwise, 0),
+        (6, Orientation::Counterclockwise, 2),
+        (0, Orientation::Counterclockwise, 4),
+        (4, Orientation::Clockwise, 6),
+    ],
+    [
+        (1, Orientation::Nothing, 0),
+        (3, Orientation::Nothing, 1),
+        (0, Orientation::Nothing, 2),
+        (2, Orientation::Nothing, 3),
+    ],
+];
+
 impl Cube<2> for Cube2 {
     fn from_colors(face_to_color: &[(CubeFace, Color); NUM_FACES]) -> Self {
         let mut corners: [Corner; NUM_CORNERS] = Default::default();
@@ -239,116 +352,7 @@ impl Cube<2> for Cube2 {
 
     fn apply_turn(&mut self, turn: &Turn) {
         let turn_index: usize = turn.clone().into();
-        let table: [(usize, Orientation, usize); 4] = [
-            [
-                (5, Orientation::Nothing, 4),
-                (7, Orientation::Nothing, 5),
-                (4, Orientation::Nothing, 6),
-                (6, Orientation::Nothing, 7),
-            ],
-            [
-                (1, Orientation::Counterclockwise, 0),
-                (5, Orientation::Clockwise, 1),
-                (0, Orientation::Clockwise, 4),
-                (4, Orientation::Counterclockwise, 5),
-            ],
-            [
-                (3, Orientation::Counterclockwise, 1),
-                (7, Orientation::Clockwise, 3),
-                (1, Orientation::Clockwise, 5),
-                (5, Orientation::Counterclockwise, 7),
-            ],
-            [
-                (6, Orientation::Clockwise, 2),
-                (2, Orientation::Counterclockwise, 3),
-                (7, Orientation::Counterclockwise, 6),
-                (3, Orientation::Clockwise, 7),
-            ],
-            [
-                (4, Orientation::Clockwise, 0),
-                (0, Orientation::Counterclockwise, 2),
-                (6, Orientation::Counterclockwise, 4),
-                (2, Orientation::Clockwise, 6),
-            ],
-            [
-                (2, Orientation::Nothing, 0),
-                (0, Orientation::Nothing, 1),
-                (3, Orientation::Nothing, 2),
-                (1, Orientation::Nothing, 3),
-            ],
-            [
-                (7, Orientation::Nothing, 4),
-                (6, Orientation::Nothing, 5),
-                (5, Orientation::Nothing, 6),
-                (4, Orientation::Nothing, 7),
-            ],
-            [
-                (5, Orientation::Nothing, 0),
-                (4, Orientation::Nothing, 1),
-                (1, Orientation::Nothing, 4),
-                (0, Orientation::Nothing, 5),
-            ],
-            [
-                (7, Orientation::Nothing, 1),
-                (5, Orientation::Nothing, 3),
-                (3, Orientation::Nothing, 5),
-                (1, Orientation::Nothing, 7),
-            ],
-            [
-                (7, Orientation::Nothing, 2),
-                (6, Orientation::Nothing, 3),
-                (3, Orientation::Nothing, 6),
-                (2, Orientation::Nothing, 7),
-            ],
-            [
-                (6, Orientation::Nothing, 0),
-                (4, Orientation::Nothing, 2),
-                (2, Orientation::Nothing, 4),
-                (0, Orientation::Nothing, 6),
-            ],
-            [
-                (3, Orientation::Nothing, 0),
-                (2, Orientation::Nothing, 1),
-                (1, Orientation::Nothing, 2),
-                (0, Orientation::Nothing, 3),
-            ],
-            [
-                (6, Orientation::Nothing, 4),
-                (4, Orientation::Nothing, 5),
-                (7, Orientation::Nothing, 6),
-                (5, Orientation::Nothing, 7),
-            ],
-            [
-                (4, Orientation::Counterclockwise, 0),
-                (0, Orientation::Clockwise, 1),
-                (5, Orientation::Clockwise, 4),
-                (1, Orientation::Counterclockwise, 5),
-            ],
-            [
-                (5, Orientation::Counterclockwise, 1),
-                (1, Orientation::Clockwise, 3),
-                (7, Orientation::Clockwise, 5),
-                (3, Orientation::Counterclockwise, 7),
-            ],
-            [
-                (3, Orientation::Clockwise, 2),
-                (7, Orientation::Counterclockwise, 3),
-                (2, Orientation::Counterclockwise, 6),
-                (6, Orientation::Clockwise, 7),
-            ],
-            [
-                (2, Orientation::Clockwise, 0),
-                (6, Orientation::Counterclockwise, 2),
-                (0, Orientation::Counterclockwise, 4),
-                (4, Orientation::Clockwise, 6),
-            ],
-            [
-                (1, Orientation::Nothing, 0),
-                (3, Orientation::Nothing, 1),
-                (0, Orientation::Nothing, 2),
-                (2, Orientation::Nothing, 3),
-            ],
-        ][turn_index];
+        let table: [(usize, Orientation, usize); 4] = TURN_TABLE[turn_index];
         for (index, orientation, _) in table {
             let corner: &mut Corner = &mut self.corners[index];
             corner.orientation = corner.orientation.compose(orientation);
