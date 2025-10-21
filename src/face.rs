@@ -8,6 +8,12 @@ pub struct Coord {
     pub col: usize,
 }
 
+impl Coord {
+    pub const fn new(row: usize, col: usize) -> Self {
+        Coord { row, col }
+    }
+}
+
 #[derive(Clone, Hash, PartialEq, Eq, Debug)]
 pub struct Face<const N: usize>([Row<N>; N]);
 

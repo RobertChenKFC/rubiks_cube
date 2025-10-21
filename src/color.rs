@@ -1,8 +1,9 @@
 use std::fmt;
 use std::fmt::{Display, Formatter};
 
-#[derive(Copy, Clone, Hash, PartialEq, Eq, Debug)]
+#[derive(Copy, Clone, Hash, PartialEq, Eq, Debug, Default)]
 pub enum Color {
+    #[default]
     White,
     Yellow,
     Red,
@@ -46,6 +47,17 @@ impl Color {
             }
         };
         Ok((color, chars.as_str()))
+    }
+
+    pub fn to_char(&self) -> char {
+        match self {
+            Color::White => 'W',
+            Color::Yellow => 'Y',
+            Color::Red => 'R',
+            Color::Orange => 'O',
+            Color::Blue => 'B',
+            Color::Green => 'G',
+        }
     }
 }
 
