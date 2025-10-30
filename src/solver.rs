@@ -6,8 +6,8 @@ use std::io;
 use std::io::Write;
 use std::marker::PhantomData;
 
-pub struct Solver<const N: usize, C: Cube<N>> {
-    cube_type: PhantomData<C>,
+pub trait Solver<const N: usize, C: Cube<N>> {
+    fn solve(cube: &C) -> Turns;
 }
 // TODO: I cannot figure out how to move this type alias inside the impl block
 // of solver without the compiler complaining. Something to do with "inherent
@@ -16,7 +16,11 @@ pub struct Solver<const N: usize, C: Cube<N>> {
 // place. Find a way to make it work would be better.
 // type SolverStateMap = HashMap<Cube<N>, Option<Turn>>;
 
-impl<const N: usize, C: Cube<N>> Solver<N, C> {
+pub struct NaiveSolver<const N: usize, C: Cube<N>> {
+    cube_type: PhantomData<C>,
+}
+
+impl<const N: usize, C: Cube<N>> NaiveSolver<N, C> {
     fn sol_len_upper_bound() -> usize {
         match N {
             2 => 11,
@@ -25,8 +29,11 @@ impl<const N: usize, C: Cube<N>> Solver<N, C> {
         }
     }
 
-    fn get_all_states_within(cube: &C, len: usize) -> HashMap<C, Option<Turn>> {
-        let all_turns = Turn::all_required_turns::<N>();
+    fn get_all_states_within(
+        cube: &C,
+        len: usize,
+        all_turns: &Turns,
+    ) -> HashMap<C, Option<Turn>> {
         // A map from a cube state to a `Turn`, representing the previous turn
         // that brought us to this state. The initial state does not have a
         // previous turn.
@@ -39,7 +46,14 @@ impl<const N: usize, C: Cube<N>> Solver<N, C> {
         let mut cube_states_processed = 0;
         while !queue.is_empty() {
             cube_states_processed += 1;
-            io::stdout().flush().expect("Flush error");
+            if cube_states_processed % 1000000 == 0 {
+                println!(
+                    "Processed {} states, {} states stored",
+                    cube_states_processed,
+                    cube_states.len()
+                );
+                io::stdout().flush().expect("Flush error");
+            }
 
             let (cube, cur_len) = queue.pop_front().unwrap();
             for turn in all_turns.iter() {
@@ -72,7 +86,7 @@ impl<const N: usize, C: Cube<N>> Solver<N, C> {
     }
 
     fn get_turns_to_state(cube: &C, map: &HashMap<C, Option<Turn>>) -> Turns {
-        let mut turns = Solver::get_turns_from_state(cube, map).0;
+        let mut turns = NaiveSolver::get_turns_from_state(cube, map).0;
         turns.reverse();
         for turn in &mut turns {
             *turn = turn.inverse();
@@ -80,34 +94,55 @@ impl<const N: usize, C: Cube<N>> Solver<N, C> {
         Turns(turns)
     }
 
-    pub fn solve(cube: &C) -> Turns {
-        let upper_bound = Solver::<N, C>::sol_len_upper_bound();
-        let len = if upper_bound % 2 == 0 {
-            upper_bound / 2
-        } else {
-            (upper_bound + 1) / 2
-        };
-        let solved_cube = cube.from_corner_colors();
-        let from_initial = Solver::get_all_states_within(cube, len);
-        let from_solved = Solver::get_all_states_within(&solved_cube, len);
+    pub fn meet_in_the_middle_with_turns(
+        from_state: &C,
+        to_state: &C,
+        len: usize,
+        all_turns: &Turns,
+    ) -> Turns {
+        let from_len = len / 2 + len % 2;
+        let to_len = len - from_len;
+        let all_states_from =
+            NaiveSolver::get_all_states_within(from_state, from_len, all_turns);
+        let all_states_to =
+            NaiveSolver::get_all_states_within(to_state, to_len, all_turns);
         let mut best_sol: Option<Turns> = None;
-        for cube in from_initial.keys() {
-            if !from_solved.contains_key(cube) {
+        for cube in all_states_from.keys() {
+            if !all_states_to.contains_key(cube) {
                 continue;
             }
-            let mut turns_from_initial =
-                Solver::get_turns_to_state(cube, &from_initial).0;
-            let turns_to_solved =
-                Solver::get_turns_from_state(cube, &from_solved).0;
-            let cur_sol_len = turns_from_initial.len() + turns_to_solved.len();
+            let mut turns_from =
+                NaiveSolver::get_turns_to_state(cube, &all_states_from).0;
+            let turns_to =
+                NaiveSolver::get_turns_from_state(cube, &all_states_to).0;
+            let cur_sol_len = turns_from.len() + turns_to.len();
             if let Some(ref cur_best_sol) = best_sol
                 && cur_best_sol.0.len() <= cur_sol_len
             {
                 continue;
             }
-            turns_from_initial.extend(turns_to_solved);
-            best_sol = Some(Turns(turns_from_initial));
+            turns_from.extend(turns_to);
+            best_sol = Some(Turns(turns_from));
         }
         best_sol.unwrap()
+    }
+
+    pub fn meet_in_the_middle(
+        from_state: &C,
+        to_state: &C,
+        len: usize,
+    ) -> Turns {
+        let all_turns = Turn::all_required_turns::<N>();
+        NaiveSolver::meet_in_the_middle_with_turns(
+            from_state, to_state, len, &all_turns,
+        )
+    }
+}
+
+impl<const N: usize, C: Cube<N>> Solver<N, C> for NaiveSolver<N, C> {
+    fn solve(cube: &C) -> Turns {
+        let len = NaiveSolver::<N, C>::sol_len_upper_bound();
+        let solved_cube = cube.from_corner_colors();
+        NaiveSolver::meet_in_the_middle(cube, &solved_cube, len)
     }
 }

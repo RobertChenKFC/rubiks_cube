@@ -6,7 +6,7 @@ use crate::turn::{CubeFace, Direction, Turn, Turns};
 use std::collections::HashMap;
 
 #[derive(Debug, PartialEq, Eq, Hash, Clone, Copy, Default)]
-enum CornerIndex {
+pub enum CornerIndex {
     #[default]
     DBL = 0,
     DLF = 1,
@@ -19,7 +19,7 @@ enum CornerIndex {
 }
 
 #[derive(Debug, PartialEq, Eq, Hash, Clone, Copy, Default)]
-enum Orientation {
+pub enum Orientation {
     #[default]
     Nothing = 0,
     Clockwise = 1,
@@ -38,9 +38,9 @@ impl Orientation {
 }
 
 #[derive(Debug, PartialEq, Eq, Hash, Clone, Default)]
-struct Corner {
-    index: CornerIndex,
-    orientation: Orientation,
+pub struct Corner {
+    pub index: CornerIndex,
+    pub orientation: Orientation,
 }
 
 impl Corner {
@@ -55,7 +55,7 @@ impl Corner {
 const NUM_CORNERS: usize = 8;
 #[derive(Debug, PartialEq, Eq, Hash, Clone, Default)]
 pub struct Cube2 {
-    corners: [Corner; NUM_CORNERS],
+    pub corners: [Corner; NUM_CORNERS],
     color_map: [Color; NUM_FACES],
 }
 
@@ -100,8 +100,8 @@ const CORNER_COLORS: [[Color; NUM_CORNER_FACES]; NUM_CORNERS] = [
     [Color::White, Color::Blue, Color::Red],
     [Color::White, Color::Red, Color::Green],
 ];
-const NUM_CORNERS_PER_TURN: usize = 4;
 const NUM_TURNS: usize = 18;
+const NUM_CORNERS_PER_TURN: usize = 4;
 
 impl Cube2 {
     fn apply_orientation(
@@ -149,14 +149,13 @@ impl Cube2 {
         Err(ParsingErr::InvalidColor)
     }
 
-    // TODO: change this to private function
-    pub fn apply_turn_ref(&mut self, turn: &Turn) {
+    fn apply_turn_ref(&mut self, turn: &Turn) {
         let mut ref_cube: RefCube<2> = self.clone().into();
         ref_cube.apply_turn(turn);
         *self = Cube2::parse_str(&ref_cube.to_color_string()).unwrap();
     }
 
-    pub fn apply_turns_ref(&mut self, turns: &Turns) {
+    fn apply_turns_ref(&mut self, turns: &Turns) {
         for turn in turns.iter() {
             self.apply_turn_ref(turn);
         }
