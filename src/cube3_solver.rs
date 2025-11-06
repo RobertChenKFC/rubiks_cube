@@ -3,14 +3,14 @@ use crate::cube::{Cube, NUM_FACES, RefCube};
 use crate::cube2;
 use crate::cube2::CornerIndex;
 use crate::cube3;
-use crate::cube3::{Cube3, EdgeIndex, CUBE3_SIZE, NUM_EDGES};
+use crate::cube3::{CUBE3_SIZE, Cube3, EdgeIndex, NUM_EDGES};
 use crate::solver::{NaiveSolver, Solver};
 use crate::turn::{CubeFace, Direction, Turn, Turns};
 
 use std::collections::HashMap;
-use std::hash::{Hash, Hasher};
 use std::fs;
 use std::fs::File;
+use std::hash::{Hash, Hasher};
 use std::io;
 use std::io::Write;
 use std::time::Instant;
@@ -129,7 +129,7 @@ impl From<CompactCube3> for Cube3 {
 }
 
 pub struct Cube3Solver {
-    all_states_to: HashMap<CompactCube3, Option<Turn>>
+    all_states_to: HashMap<CompactCube3, Option<Turn>>,
 }
 
 const NUL_TURN: u8 = 255;
@@ -138,7 +138,7 @@ const ENTRY_SIZE: usize = CUBE3_SIZE + 1;
 impl Cube3Solver {
     pub fn new(table_path: &str) -> Cube3Solver {
         Cube3Solver {
-            all_states_to: Cube3Solver::load_table(table_path)
+            all_states_to: Cube3Solver::load_table(table_path),
         }
     }
 
@@ -164,8 +164,7 @@ impl Cube3Solver {
         true
     }
 
-    // TODO: make this private
-    pub fn all_ruf_turns() -> Turns {
+    fn all_ruf_turns() -> Turns {
         let mut all_turns = Vec::new();
         for face in [CubeFace::Right, CubeFace::Up, CubeFace::Front] {
             for dir in [
@@ -185,7 +184,11 @@ impl Cube3Solver {
 
     pub fn gen_table(path: &str, len: usize) {
         let solved = CompactCube3::new();
-        let table = NaiveSolver::get_all_states_within(&solved, len, &Cube3Solver::all_ruf_turns());
+        let table = NaiveSolver::get_all_states_within(
+            &solved,
+            len,
+            &Cube3Solver::all_ruf_turns(),
+        );
         let mut file = File::create(path).unwrap();
         for (i, (cube, turn)) in table.iter().enumerate() {
             if i % 1000000 == 0 {
@@ -222,11 +225,13 @@ impl Cube3Solver {
             table.insert(cube3, turn);
             cnt += 1;
         }
-        println!("Converting into hash table took {} us", now.elapsed().as_micros());
+        println!(
+            "Converting into hash table took {} us",
+            now.elapsed().as_micros()
+        );
         table
     }
 }
-
 
 impl Solver<3, Cube3> for Cube3Solver {
     fn solve(&self, cube: &Cube3) -> Turns {
@@ -249,7 +254,7 @@ impl Solver<3, Cube3> for Cube3Solver {
         // seems to work for superflip
         let turns2 = NaiveSolver::find_turns_to_state(
             &solved_dbl,
-            /*from_len=*/9,
+            /*from_len=*/ 9,
             &self.all_states_to,
             &Cube3Solver::all_ruf_turns(),
         );

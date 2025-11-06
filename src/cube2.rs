@@ -1,7 +1,9 @@
 use crate::color::{Color, ParsingErr};
 use crate::cube::{Cube, NUM_FACES, RefCube};
 use crate::face::Coord;
-use crate::turn::{ALL_FACES, ALL_DIRS, NUM_DIRS, CubeFace, Direction, Turn, Turns};
+use crate::turn::{
+    ALL_DIRS, ALL_FACES, CubeFace, Direction, NUM_DIRS, Turn, Turns,
+};
 
 use std::collections::HashMap;
 
@@ -217,7 +219,11 @@ impl From<usize> for Turn {
         let dir = turn / NUM_FACES;
         assert!(dir < NUM_DIRS);
         let dir = ALL_DIRS[dir];
-        Turn { face, dir, num_layers: 1 }
+        Turn {
+            face,
+            dir,
+            num_layers: 1,
+        }
     }
 }
 

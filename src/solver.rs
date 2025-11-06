@@ -22,7 +22,9 @@ pub struct NaiveSolver<const N: usize, C: Cube<N>> {
 
 impl<const N: usize, C: Cube<N>> NaiveSolver<N, C> {
     pub fn new() -> Self {
-        NaiveSolver { cube_type: PhantomData }
+        NaiveSolver {
+            cube_type: PhantomData,
+        }
     }
 
     fn sol_len_upper_bound() -> usize {
@@ -138,7 +140,12 @@ impl<const N: usize, C: Cube<N>> NaiveSolver<N, C> {
         let to_len = len - from_len;
         let all_states_to =
             NaiveSolver::get_all_states_within(to_state, to_len, all_turns);
-        NaiveSolver::find_turns_to_state(from_state, from_len, &all_states_to, all_turns)
+        NaiveSolver::find_turns_to_state(
+            from_state,
+            from_len,
+            &all_states_to,
+            all_turns,
+        )
     }
 
     pub fn meet_in_the_middle(

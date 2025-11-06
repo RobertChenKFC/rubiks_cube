@@ -1,7 +1,7 @@
 use crate::color::{Color, ParsingErr};
 use crate::cube::{Cube, NUM_FACES, RefCube};
 use crate::cube2;
-use crate::cube2::{Cube2, Corner};
+use crate::cube2::{Corner, Cube2};
 use crate::face::{Coord, Face};
 use crate::turn::{CubeFace, Turn, Turns};
 
@@ -395,7 +395,6 @@ pub struct Cube3 {
     pub corners: Cube2,
 }
 
-
 #[derive(Debug)]
 pub enum SerializationErr {
     InvalidEdgeIndex,
@@ -420,9 +419,13 @@ impl Cube3 {
         bytes
     }
 
-    pub fn deserialize(s: &[u8; CUBE3_SIZE]) -> Result<Cube3, SerializationErr> {
+    pub fn deserialize(
+        s: &[u8; CUBE3_SIZE],
+    ) -> Result<Cube3, SerializationErr> {
         let mut cube = Cube3::new();
-        for (edge, byte) in cube.edges.edges.iter_mut().zip(s[0..NUM_EDGES].iter()) {
+        for (edge, byte) in
+            cube.edges.edges.iter_mut().zip(s[0..NUM_EDGES].iter())
+        {
             let index = (byte >> 4) as usize;
             if index >= NUM_EDGES {
                 return Err(SerializationErr::InvalidEdgeIndex);
@@ -435,7 +438,12 @@ impl Cube3 {
             let orientation = ALL_ORIENTATIONS[orientation];
             *edge = Edge { index, orientation };
         }
-        for (corner, byte) in cube.corners.corners.iter_mut().zip(s[NUM_EDGES..CUBE3_SIZE].iter()) {
+        for (corner, byte) in cube
+            .corners
+            .corners
+            .iter_mut()
+            .zip(s[NUM_EDGES..CUBE3_SIZE].iter())
+        {
             let index = (byte >> 4) as usize;
             if index >= cube2::NUM_CORNERS {
                 return Err(SerializationErr::InvalidCornerIndex);
@@ -552,7 +560,8 @@ mod tests {
     #[test]
     fn test_serialization() {
         let mut cube = Cube3::new();
-        let turns = Turns::parse_str("UR2FBRB2RU2LB2RU'D'R2FR'LB2U2F2").unwrap();
+        let turns =
+            Turns::parse_str("UR2FBRB2RU2LB2RU'D'R2FR'LB2U2F2").unwrap();
         cube.apply_turns(&turns);
         let cube2 = Cube3::deserialize(&cube.serialize()).unwrap();
         assert_eq!(cube, cube2);

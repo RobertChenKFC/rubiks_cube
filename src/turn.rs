@@ -50,11 +50,8 @@ pub const ALL_FACES: [CubeFace; NUM_FACES] = [
     CubeFace::Down,
 ];
 
-const RUF_FACES: [CubeFace; 3] = [
-    CubeFace::Right,
-    CubeFace::Up,
-    CubeFace::Front,
-];
+const RUF_FACES: [CubeFace; 3] =
+    [CubeFace::Right, CubeFace::Up, CubeFace::Front];
 
 impl Turn {
     pub fn parse_str(s: &str) -> Result<(Turn, &str), ParsingErr> {
