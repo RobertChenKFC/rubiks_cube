@@ -3,12 +3,17 @@ use crate::cube::{Cube, NUM_FACES, RefCube};
 use crate::cube2;
 use crate::cube2::CornerIndex;
 use crate::cube3;
-use crate::cube3::{Cube3, EdgeIndex, NUM_EDGES};
+use crate::cube3::{Cube3, EdgeIndex, CUBE3_SIZE, NUM_EDGES};
 use crate::solver::{NaiveSolver, Solver};
 use crate::turn::{CubeFace, Direction, Turn, Turns};
 
-use std::collections::{HashMap, VecDeque};
+use std::collections::HashMap;
 use std::hash::{Hash, Hasher};
+use std::fs;
+use std::fs::File;
+use std::io;
+use std::io::Write;
+use std::time::Instant;
 
 const DBL_CORNER: [CornerIndex; 1] = [CornerIndex::DBL];
 const DBL_EDGES: [EdgeIndex; 3] = [EdgeIndex::LB, EdgeIndex::BD, EdgeIndex::LD];
@@ -86,9 +91,57 @@ impl From<DblCube> for RefCube<3> {
     }
 }
 
-pub struct Cube3Solver;
+#[derive(Default, Debug, PartialEq, Eq, Hash, Clone)]
+pub struct CompactCube3(pub [u8; CUBE3_SIZE]);
+
+impl Cube<3> for CompactCube3 {
+    fn from_colors(face_to_color: &[(CubeFace, Color); NUM_FACES]) -> Self {
+        CompactCube3(Cube3::from_colors(face_to_color).serialize())
+    }
+
+    fn parse_str(s: &str) -> Result<Self, ParsingErr> {
+        Ok(CompactCube3(Cube3::parse_str(s)?.serialize()))
+    }
+
+    fn apply_turn(&mut self, turn: &Turn) {
+        let mut cube = Cube3::deserialize(&self.0).unwrap();
+        cube.apply_turn(turn);
+        self.0 = cube.serialize();
+    }
+}
+
+impl From<CompactCube3> for RefCube<3> {
+    fn from(cube: CompactCube3) -> RefCube<3> {
+        Cube3::deserialize(&cube.0).unwrap().into()
+    }
+}
+
+impl From<Cube3> for CompactCube3 {
+    fn from(cube: Cube3) -> CompactCube3 {
+        CompactCube3(cube.serialize())
+    }
+}
+
+impl From<CompactCube3> for Cube3 {
+    fn from(cube: CompactCube3) -> Cube3 {
+        Cube3::deserialize(&cube.0).unwrap()
+    }
+}
+
+pub struct Cube3Solver {
+    all_states_to: HashMap<CompactCube3, Option<Turn>>
+}
+
+const NUL_TURN: u8 = 255;
+const ENTRY_SIZE: usize = CUBE3_SIZE + 1;
 
 impl Cube3Solver {
+    pub fn new(table_path: &str) -> Cube3Solver {
+        Cube3Solver {
+            all_states_to: Cube3Solver::load_table(table_path)
+        }
+    }
+
     fn is_dbl_block_solved(cube: &Cube3) -> bool {
         let cube_corners = &cube.corners.corners;
         for corner_index in DBL_CORNER.iter() {
@@ -110,24 +163,9 @@ impl Cube3Solver {
         }
         true
     }
-}
 
-impl Solver<3, Cube3> for Cube3Solver {
-    fn solve(cube: &Cube3) -> Turns {
-        // Stage 1: solve the DBL 2x2 block
-        let cur_dbl = DblCube(cube.clone());
-        let solved_dbl = DblCube::new();
-        // TODO: adjust the length. This seems to work for superflip, though.
-        // However, the length is off by 1 for some reason, because the solution
-        // only required 6 moves
-        let mut turns1 =
-            NaiveSolver::meet_in_the_middle(&cur_dbl, &solved_dbl, 7);
-        println!("To DBL solved: {}", turns1);
-
-        // Stage 2: solve the entire cube using only R, U, F
-        let mut solved_dbl = cube.clone();
-        solved_dbl.apply_turns(&turns1);
-        let solved = Cube3::new();
+    // TODO: make this private
+    pub fn all_ruf_turns() -> Turns {
         let mut all_turns = Vec::new();
         for face in [CubeFace::Right, CubeFace::Up, CubeFace::Front] {
             for dir in [
@@ -142,13 +180,78 @@ impl Solver<3, Cube3> for Cube3Solver {
                 });
             }
         }
-        let all_turns = Turns(all_turns);
-        // TODO: adjust the length
-        let turns2 = NaiveSolver::meet_in_the_middle_with_turns(
+        Turns(all_turns)
+    }
+
+    pub fn gen_table(path: &str, len: usize) {
+        let solved = CompactCube3::new();
+        let table = NaiveSolver::get_all_states_within(&solved, len, &Cube3Solver::all_ruf_turns());
+        let mut file = File::create(path).unwrap();
+        for (i, (cube, turn)) in table.iter().enumerate() {
+            if i % 1000000 == 0 {
+                println!("Saved {} entries", i);
+            }
+            file.write_all(&cube.0).unwrap();
+            let turn = match turn {
+                Some(turn) => <Turn as Into<usize>>::into(turn.clone()) as u8,
+                None => NUL_TURN,
+            };
+            file.write_all(&[turn]).unwrap();
+        }
+    }
+
+    pub fn load_table(path: &str) -> HashMap<CompactCube3, Option<Turn>> {
+        let now = Instant::now();
+        let bytes = fs::read(path).unwrap();
+        println!("Loading from file took {} us", now.elapsed().as_micros());
+
+        let now = Instant::now();
+        let num_entries = bytes.len() / ENTRY_SIZE;
+        let mut table = HashMap::new();
+        let mut cnt = 0;
+        for i in (0..bytes.len()).step_by(ENTRY_SIZE) {
+            if cnt % 1000000 == 0 {
+                println!("Loaded {} entries", cnt);
+            }
+            let mut cube3: CompactCube3 = Default::default();
+            cube3.0.copy_from_slice(&bytes[i..i + CUBE3_SIZE]);
+            let turn = match bytes[i + CUBE3_SIZE] {
+                NUL_TURN => None,
+                turn => Some((turn as usize).into()),
+            };
+            table.insert(cube3, turn);
+            cnt += 1;
+        }
+        println!("Converting into hash table took {} us", now.elapsed().as_micros());
+        table
+    }
+}
+
+
+impl Solver<3, Cube3> for Cube3Solver {
+    fn solve(&self, cube: &Cube3) -> Turns {
+        // Stage 1: solve the DBL 2x2 block
+        let cur_dbl = DblCube(cube.clone());
+        let solved_dbl = DblCube::new();
+        // TODO: adjust the length. This seems to work for superflip, though.
+        // However, the length is off by 1 for some reason, because the solution
+        // only required 6 moves
+        let mut turns1 =
+            NaiveSolver::meet_in_the_middle(&cur_dbl, &solved_dbl, 7);
+        println!("To DBL solved: {}", turns1);
+
+        // Stage 2: solve the entire cube using only R, U, F
+        let mut solved_dbl = cube.clone();
+        solved_dbl.apply_turns(&turns1);
+        let solved_dbl = CompactCube3(solved_dbl.serialize());
+        // TODO: adjust the length. Currently, the table stores length 10 from
+        // solved state, and the solver searchs length 9 from solved_dbl. This
+        // seems to work for superflip
+        let turns2 = NaiveSolver::find_turns_to_state(
             &solved_dbl,
-            &solved,
-            19,
-            &all_turns,
+            /*from_len=*/9,
+            &self.all_states_to,
+            &Cube3Solver::all_ruf_turns(),
         );
         turns1.0.extend(turns2.0);
         turns1

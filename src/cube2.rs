@@ -1,7 +1,7 @@
 use crate::color::{Color, ParsingErr};
 use crate::cube::{Cube, NUM_FACES, RefCube};
 use crate::face::Coord;
-use crate::turn::{CubeFace, Direction, Turn, Turns};
+use crate::turn::{ALL_FACES, ALL_DIRS, NUM_DIRS, CubeFace, Direction, Turn, Turns};
 
 use std::collections::HashMap;
 
@@ -25,6 +25,13 @@ pub enum Orientation {
     Clockwise = 1,
     Counterclockwise = 2,
 }
+
+pub const NUM_ORIENTATIONS: usize = 3;
+pub const ALL_ORIENTATIONS: [Orientation; NUM_ORIENTATIONS] = [
+    Orientation::Nothing,
+    Orientation::Clockwise,
+    Orientation::Counterclockwise,
+];
 
 impl Orientation {
     fn compose(&self, orientation: Orientation) -> Orientation {
@@ -52,7 +59,7 @@ impl Corner {
     }
 }
 
-const NUM_CORNERS: usize = 8;
+pub const NUM_CORNERS: usize = 8;
 #[derive(Debug, PartialEq, Eq, Hash, Clone, Default)]
 pub struct Cube2 {
     pub corners: [Corner; NUM_CORNERS],
@@ -60,7 +67,7 @@ pub struct Cube2 {
 }
 
 const NUM_CORNER_FACES: usize = 3;
-const CORNER_INDICES: [CornerIndex; NUM_CORNERS] = [
+pub const CORNER_INDICES: [CornerIndex; NUM_CORNERS] = [
     CornerIndex::DBL,
     CornerIndex::DLF,
     CornerIndex::DRB,
@@ -201,6 +208,16 @@ impl From<Turn> for usize {
     fn from(turn: Turn) -> usize {
         assert_eq!(turn.num_layers, 1);
         (turn.dir as usize) * NUM_FACES + (turn.face as usize)
+    }
+}
+
+impl From<usize> for Turn {
+    fn from(turn: usize) -> Turn {
+        let face = ALL_FACES[turn % NUM_FACES];
+        let dir = turn / NUM_FACES;
+        assert!(dir < NUM_DIRS);
+        let dir = ALL_DIRS[dir];
+        Turn { face, dir, num_layers: 1 }
     }
 }
 
@@ -410,5 +427,13 @@ mod tests {
     #[test]
     fn test_cube_in_a_cube() {
         test_turns("FLFU'RUF2L2U'L'BD'B'L2U");
+    }
+
+    #[test]
+    fn turn_serialize() {
+        for turn in Turn::all_turns::<2>().iter() {
+            let turn_idx: usize = turn.clone().into();
+            assert_eq!(*turn, turn_idx.into());
+        }
     }
 }

@@ -2,3 +2,4 @@
 *.swp
 flamegraph.svg
 perf.data*
+*.bin

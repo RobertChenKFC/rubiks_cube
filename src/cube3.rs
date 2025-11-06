@@ -1,6 +1,7 @@
 use crate::color::{Color, ParsingErr};
 use crate::cube::{Cube, NUM_FACES, RefCube};
-use crate::cube2::Cube2;
+use crate::cube2;
+use crate::cube2::{Cube2, Corner};
 use crate::face::{Coord, Face};
 use crate::turn::{CubeFace, Turn, Turns};
 
@@ -394,6 +395,63 @@ pub struct Cube3 {
     pub corners: Cube2,
 }
 
+
+#[derive(Debug)]
+pub enum SerializationErr {
+    InvalidEdgeIndex,
+    InvalidEdgeOrientation,
+    InvalidCornerIndex,
+    InvalidCornerOrientation,
+}
+
+pub const CUBE3_SIZE: usize = 20;
+impl Cube3 {
+    pub fn serialize(&self) -> [u8; CUBE3_SIZE] {
+        let mut i = 0;
+        let mut bytes = [0; CUBE3_SIZE];
+        for edge in &self.edges.edges {
+            bytes[i] = ((edge.index as u8) << 4) | (edge.orientation as u8);
+            i += 1;
+        }
+        for corner in &self.corners.corners {
+            bytes[i] = ((corner.index as u8) << 4) | (corner.orientation as u8);
+            i += 1;
+        }
+        bytes
+    }
+
+    pub fn deserialize(s: &[u8; CUBE3_SIZE]) -> Result<Cube3, SerializationErr> {
+        let mut cube = Cube3::new();
+        for (edge, byte) in cube.edges.edges.iter_mut().zip(s[0..NUM_EDGES].iter()) {
+            let index = (byte >> 4) as usize;
+            if index >= NUM_EDGES {
+                return Err(SerializationErr::InvalidEdgeIndex);
+            }
+            let index = EDGE_INDICES[index];
+            let orientation = (byte & 0xf) as usize;
+            if orientation >= NUM_ORIENTATIONS {
+                return Err(SerializationErr::InvalidEdgeOrientation);
+            }
+            let orientation = ALL_ORIENTATIONS[orientation];
+            *edge = Edge { index, orientation };
+        }
+        for (corner, byte) in cube.corners.corners.iter_mut().zip(s[NUM_EDGES..CUBE3_SIZE].iter()) {
+            let index = (byte >> 4) as usize;
+            if index >= cube2::NUM_CORNERS {
+                return Err(SerializationErr::InvalidCornerIndex);
+            }
+            let index = cube2::CORNER_INDICES[index];
+            let orientation = (byte & 0xf) as usize;
+            if orientation >= cube2::NUM_ORIENTATIONS {
+                return Err(SerializationErr::InvalidCornerOrientation);
+            }
+            let orientation = cube2::ALL_ORIENTATIONS[orientation];
+            *corner = Corner { index, orientation };
+        }
+        Ok(cube)
+    }
+}
+
 impl Cube<3> for Cube3 {
     fn from_colors(face_to_color: &[(CubeFace, Color); NUM_FACES]) -> Self {
         Cube3 {
@@ -489,5 +547,14 @@ mod tests {
     #[test]
     fn test_superflip() {
         test_turns::<Cube3>("UR2FBRB2RU2LB2RU'D'R2FR'LB2U2F2");
+    }
+
+    #[test]
+    fn test_serialization() {
+        let mut cube = Cube3::new();
+        let turns = Turns::parse_str("UR2FBRB2RU2LB2RU'D'R2FR'LB2U2F2").unwrap();
+        cube.apply_turns(&turns);
+        let cube2 = Cube3::deserialize(&cube.serialize()).unwrap();
+        assert_eq!(cube, cube2);
     }
 }
