@@ -88,7 +88,7 @@ impl Orientation {
 }
 
 const NUM_ORIENTATIONS: usize = 2;
-const ALL_ORIENTATIONS: [Orientation; NUM_ORIENTATIONS] =
+pub const ALL_ORIENTATIONS: [Orientation; NUM_ORIENTATIONS] =
     [Orientation::Nothing, Orientation::Flipped];
 
 #[derive(Default, Debug, PartialEq, Eq, Hash, Clone)]

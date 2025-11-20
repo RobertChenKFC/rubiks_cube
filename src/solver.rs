@@ -2,6 +2,7 @@ use crate::cube::Cube;
 use crate::turn::{Turn, Turns};
 
 use std::collections::{HashMap, VecDeque};
+use std::hash::{BuildHasher, RandomState};
 use std::io;
 use std::io::Write;
 use std::marker::PhantomData;
@@ -16,14 +17,51 @@ pub trait Solver<const N: usize, C: Cube<N>> {
 // place. Find a way to make it work would be better.
 // type SolverStateMap = HashMap<Cube<N>, Option<Turn>>;
 
-pub struct NaiveSolver<const N: usize, C: Cube<N>> {
+pub struct NaiveSolver<
+    const N: usize,
+    C: Cube<N>,
+    S: BuildHasher + Clone + Default = RandomState,
+> {
     cube_type: PhantomData<C>,
+    hash_builder: S,
 }
 
-impl<const N: usize, C: Cube<N>> NaiveSolver<N, C> {
+pub trait CubeTable<const N: usize, C: Cube<N>> {
+    fn find(&self, cube: &C) -> Option<Turn>;
+}
+
+struct CubeHashTable<
+    'a,
+    const N: usize,
+    C: Cube<N>,
+    S: BuildHasher + Clone + Default,
+> {
+    hashmap: &'a HashMap<C, Option<Turn>, S>,
+}
+
+impl<'a, const N: usize, C: Cube<N>, S: BuildHasher + Clone + Default>
+    CubeHashTable<'a, N, C, S>
+{
+    fn new(hashmap: &'a HashMap<C, Option<Turn>, S>) -> Self {
+        Self { hashmap }
+    }
+}
+
+impl<'a, const N: usize, C: Cube<N>, S: BuildHasher + Clone + Default>
+    CubeTable<N, C> for CubeHashTable<'a, N, C, S>
+{
+    fn find(&self, cube: &C) -> Option<Turn> {
+        self.hashmap[cube].clone()
+    }
+}
+
+impl<const N: usize, C: Cube<N>, S: BuildHasher + Clone + Default>
+    NaiveSolver<N, C, S>
+{
     pub fn new() -> Self {
-        NaiveSolver {
+        Self {
             cube_type: PhantomData,
+            hash_builder: S::default(),
         }
     }
 
@@ -36,14 +74,15 @@ impl<const N: usize, C: Cube<N>> NaiveSolver<N, C> {
     }
 
     pub fn get_all_states_within(
+        &self,
         cube: &C,
         len: usize,
         all_turns: &Turns,
-    ) -> HashMap<C, Option<Turn>> {
+    ) -> HashMap<C, Option<Turn>, S> {
         // A map from a cube state to a `Turn`, representing the previous turn
         // that brought us to this state. The initial state does not have a
         // previous turn.
-        let mut cube_states = HashMap::new();
+        let mut cube_states = HashMap::with_hasher(self.hash_builder.clone());
         // A queue of (cube state, len), where len is the number of turns it
         // takes to get from the initial state to this state
         let mut queue = VecDeque::new();
@@ -75,11 +114,14 @@ impl<const N: usize, C: Cube<N>> NaiveSolver<N, C> {
         cube_states
     }
 
-    fn get_turns_from_state(cube: &C, map: &HashMap<C, Option<Turn>>) -> Turns {
+    pub fn get_turns_from_state<T: CubeTable<N, C>>(
+        cube: &C,
+        map: &T,
+    ) -> Turns {
         let mut turns = Vec::new();
         let mut cube = cube.clone();
         loop {
-            match map.get(&cube).unwrap() {
+            match map.find(&cube) {
                 Some(turn) => {
                     let turn = turn.inverse();
                     cube.apply_turn(&turn);
@@ -92,8 +134,9 @@ impl<const N: usize, C: Cube<N>> NaiveSolver<N, C> {
         }
     }
 
-    fn get_turns_to_state(cube: &C, map: &HashMap<C, Option<Turn>>) -> Turns {
-        let mut turns = NaiveSolver::get_turns_from_state(cube, map).0;
+    pub fn get_turns_to_state<T: CubeTable<N, C>>(cube: &C, map: &T) -> Turns {
+        let mut turns =
+            NaiveSolver::<N, C, S>::get_turns_from_state(cube, map).0;
         turns.reverse();
         for turn in &mut turns {
             *turn = turn.inverse();
@@ -102,22 +145,29 @@ impl<const N: usize, C: Cube<N>> NaiveSolver<N, C> {
     }
 
     pub fn find_turns_to_state(
+        &self,
         from_state: &C,
         from_len: usize,
-        all_states_to: &HashMap<C, Option<Turn>>,
+        all_states_to: &HashMap<C, Option<Turn>, S>,
         all_turns: &Turns,
     ) -> Turns {
         let all_states_from =
-            NaiveSolver::get_all_states_within(from_state, from_len, all_turns);
+            self.get_all_states_within(from_state, from_len, all_turns);
         let mut best_sol: Option<Turns> = None;
         for cube in all_states_from.keys() {
             if !all_states_to.contains_key(cube) {
                 continue;
             }
-            let mut turns_from =
-                NaiveSolver::get_turns_to_state(cube, &all_states_from).0;
-            let turns_to =
-                NaiveSolver::get_turns_from_state(cube, &all_states_to).0;
+            let mut turns_from = NaiveSolver::<N, C, S>::get_turns_to_state(
+                cube,
+                &CubeHashTable::new(&all_states_from),
+            )
+            .0;
+            let turns_to = NaiveSolver::<N, C, S>::get_turns_from_state(
+                cube,
+                &CubeHashTable::new(&all_states_to),
+            )
+            .0;
             let cur_sol_len = turns_from.len() + turns_to.len();
             if let Some(ref cur_best_sol) = best_sol
                 && cur_best_sol.0.len() <= cur_sol_len
@@ -131,6 +181,7 @@ impl<const N: usize, C: Cube<N>> NaiveSolver<N, C> {
     }
 
     pub fn meet_in_the_middle_with_turns(
+        &self,
         from_state: &C,
         to_state: &C,
         len: usize,
@@ -139,8 +190,8 @@ impl<const N: usize, C: Cube<N>> NaiveSolver<N, C> {
         let from_len = len / 2 + len % 2;
         let to_len = len - from_len;
         let all_states_to =
-            NaiveSolver::get_all_states_within(to_state, to_len, all_turns);
-        NaiveSolver::find_turns_to_state(
+            self.get_all_states_within(to_state, to_len, all_turns);
+        self.find_turns_to_state(
             from_state,
             from_len,
             &all_states_to,
@@ -149,21 +200,24 @@ impl<const N: usize, C: Cube<N>> NaiveSolver<N, C> {
     }
 
     pub fn meet_in_the_middle(
+        &self,
         from_state: &C,
         to_state: &C,
         len: usize,
     ) -> Turns {
         let all_turns = Turn::all_required_turns::<N>();
-        NaiveSolver::meet_in_the_middle_with_turns(
+        self.meet_in_the_middle_with_turns(
             from_state, to_state, len, &all_turns,
         )
     }
 }
 
-impl<const N: usize, C: Cube<N>> Solver<N, C> for NaiveSolver<N, C> {
+impl<const N: usize, C: Cube<N>, S: BuildHasher + Clone + Default> Solver<N, C>
+    for NaiveSolver<N, C, S>
+{
     fn solve(&self, cube: &C) -> Turns {
-        let len = NaiveSolver::<N, C>::sol_len_upper_bound();
+        let len = NaiveSolver::<N, C, S>::sol_len_upper_bound();
         let solved_cube = cube.from_corner_colors();
-        NaiveSolver::meet_in_the_middle(cube, &solved_cube, len)
+        self.meet_in_the_middle(cube, &solved_cube, len)
     }
 }
