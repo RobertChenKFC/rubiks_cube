@@ -569,13 +569,13 @@ impl<const N: usize, C: SerializableCube3<N>, S: BuildHasher + Clone + Default>
         // TODO: adjust the length. This seems to work for superflip, though.
         // However, the length is off by 1 for some reason, because the solution
         // only required 6 moves
-        let mut turns1 =
+        let mut turns =
             naive_solver.meet_in_the_middle(&cur_dbl, &solved_dbl, 7);
-        println!("To DBL solved: {}", turns1);
+        println!("To DBL solved: {}", turns);
 
         // Stage 2: solve the entire cube using only R, U, F
         let mut solved_dbl = cube.clone();
-        solved_dbl.apply_turns(&turns1);
+        solved_dbl.apply_turns(&turns);
         let solved_dbl: C = solved_dbl.into();
         let naive_solver: NaiveSolver<_, _, S> = NaiveSolver::new();
         let mut from_solved_dbl: Vec<_> = naive_solver
@@ -607,7 +607,7 @@ impl<const N: usize, C: SerializableCube3<N>, S: BuildHasher + Clone + Default>
             }
         }
         assert!(found);
-        let mut turns_from = NaiveSolver::<_, C, S>::get_turns_to_state(
+        let turns_from = NaiveSolver::<_, C, S>::get_turns_to_state(
             &from_solved_dbl[i].0,
             &CubeVecTable::new(&from_solved_dbl),
         )
@@ -617,8 +617,9 @@ impl<const N: usize, C: SerializableCube3<N>, S: BuildHasher + Clone + Default>
             &CubeVecTable::new(&self.all_states_to),
         )
         .0;
-        turns_from.extend(turns_to);
-        Turns(turns_from)
+        turns.0.extend(turns_from);
+        turns.0.extend(turns_to);
+        turns
     }
 }
 
