@@ -1,12 +1,14 @@
 use crate::color::{Color, ParsingErr};
 use crate::cube::{Cube, NUM_FACES, RefCube};
 use crate::face::Coord;
-use crate::turn::{CubeFace, Direction, Turn, Turns};
+use crate::turn::{
+    ALL_DIRS, ALL_FACES, CubeFace, Direction, NUM_DIRS, Turn, Turns,
+};
 
 use std::collections::HashMap;
 
 #[derive(Debug, PartialEq, Eq, Hash, Clone, Copy, Default)]
-enum CornerIndex {
+pub enum CornerIndex {
     #[default]
     DBL = 0,
     DLF = 1,
@@ -18,13 +20,26 @@ enum CornerIndex {
     URF = 7,
 }
 
+impl From<CornerIndex> for usize {
+    fn from(index: CornerIndex) -> usize {
+        index as usize
+    }
+}
+
 #[derive(Debug, PartialEq, Eq, Hash, Clone, Copy, Default)]
-enum Orientation {
+pub enum Orientation {
     #[default]
     Nothing = 0,
     Clockwise = 1,
     Counterclockwise = 2,
 }
+
+pub const NUM_ORIENTATIONS: usize = 3;
+pub const ALL_ORIENTATIONS: [Orientation; NUM_ORIENTATIONS] = [
+    Orientation::Nothing,
+    Orientation::Clockwise,
+    Orientation::Counterclockwise,
+];
 
 impl Orientation {
     fn compose(&self, orientation: Orientation) -> Orientation {
@@ -38,9 +53,9 @@ impl Orientation {
 }
 
 #[derive(Debug, PartialEq, Eq, Hash, Clone, Default)]
-struct Corner {
-    index: CornerIndex,
-    orientation: Orientation,
+pub struct Corner {
+    pub index: CornerIndex,
+    pub orientation: Orientation,
 }
 
 impl Corner {
@@ -52,15 +67,15 @@ impl Corner {
     }
 }
 
-const NUM_CORNERS: usize = 8;
+pub const NUM_CORNERS: usize = 8;
 #[derive(Debug, PartialEq, Eq, Hash, Clone, Default)]
 pub struct Cube2 {
-    corners: [Corner; NUM_CORNERS],
+    pub corners: [Corner; NUM_CORNERS],
     color_map: [Color; NUM_FACES],
 }
 
 const NUM_CORNER_FACES: usize = 3;
-const CORNER_INDICES: [CornerIndex; NUM_CORNERS] = [
+pub const CORNER_INDICES: [CornerIndex; NUM_CORNERS] = [
     CornerIndex::DBL,
     CornerIndex::DLF,
     CornerIndex::DRB,
@@ -100,8 +115,8 @@ const CORNER_COLORS: [[Color; NUM_CORNER_FACES]; NUM_CORNERS] = [
     [Color::White, Color::Blue, Color::Red],
     [Color::White, Color::Red, Color::Green],
 ];
-const NUM_CORNERS_PER_TURN: usize = 4;
 const NUM_TURNS: usize = 18;
+const NUM_CORNERS_PER_TURN: usize = 4;
 
 impl Cube2 {
     fn apply_orientation(
@@ -149,14 +164,13 @@ impl Cube2 {
         Err(ParsingErr::InvalidColor)
     }
 
-    // TODO: change this to private function
-    pub fn apply_turn_ref(&mut self, turn: &Turn) {
+    fn apply_turn_ref(&mut self, turn: &Turn) {
         let mut ref_cube: RefCube<2> = self.clone().into();
         ref_cube.apply_turn(turn);
         *self = Cube2::parse_str(&ref_cube.to_color_string()).unwrap();
     }
 
-    pub fn apply_turns_ref(&mut self, turns: &Turns) {
+    fn apply_turns_ref(&mut self, turns: &Turns) {
         for turn in turns.iter() {
             self.apply_turn_ref(turn);
         }
@@ -202,6 +216,20 @@ impl From<Turn> for usize {
     fn from(turn: Turn) -> usize {
         assert_eq!(turn.num_layers, 1);
         (turn.dir as usize) * NUM_FACES + (turn.face as usize)
+    }
+}
+
+impl From<usize> for Turn {
+    fn from(turn: usize) -> Turn {
+        let face = ALL_FACES[turn % NUM_FACES];
+        let dir = turn / NUM_FACES;
+        assert!(dir < NUM_DIRS);
+        let dir = ALL_DIRS[dir];
+        Turn {
+            face,
+            dir,
+            num_layers: 1,
+        }
     }
 }
 
@@ -411,5 +439,13 @@ mod tests {
     #[test]
     fn test_cube_in_a_cube() {
         test_turns("FLFU'RUF2L2U'L'BD'B'L2U");
+    }
+
+    #[test]
+    fn turn_serialize() {
+        for turn in Turn::all_turns::<2>().iter() {
+            let turn_idx: usize = turn.clone().into();
+            assert_eq!(*turn, turn_idx.into());
+        }
     }
 }

@@ -14,14 +14,21 @@ pub enum CubeFace {
     Down = 5,
 }
 
-#[derive(PartialEq, Clone, Copy)]
+#[derive(PartialEq, Clone, Copy, Debug)]
 pub enum Direction {
     Clockwise,
     Double,
     Counterclockwise,
 }
 
-#[derive(Clone)]
+pub const NUM_DIRS: usize = 3;
+pub const ALL_DIRS: [Direction; NUM_DIRS] = [
+    Direction::Clockwise,
+    Direction::Double,
+    Direction::Counterclockwise,
+];
+
+#[derive(Clone, PartialEq, Debug)]
 pub struct Turn {
     pub face: CubeFace,
     pub dir: Direction,
@@ -34,14 +41,17 @@ pub enum ParsingErr {
     InvalidFace,
 }
 
-const ALL_FACES: [CubeFace; NUM_FACES] = [
+pub const ALL_FACES: [CubeFace; NUM_FACES] = [
     CubeFace::Up,
+    CubeFace::Left,
     CubeFace::Front,
     CubeFace::Right,
-    CubeFace::Down,
     CubeFace::Back,
-    CubeFace::Left,
+    CubeFace::Down,
 ];
+
+const RUF_FACES: [CubeFace; 3] =
+    [CubeFace::Right, CubeFace::Up, CubeFace::Front];
 
 impl Turn {
     pub fn parse_str(s: &str) -> Result<(Turn, &str), ParsingErr> {
@@ -101,9 +111,9 @@ impl Turn {
     }
 
     pub fn all_required_turns<const N: usize>() -> Turns {
-        let all_faces = if N == 2 {
+        let all_faces: &[CubeFace] = if N == 2 {
             // 2x2 cubes only need the R, F, U faces to reach any cube state
-            &ALL_FACES[..3]
+            &RUF_FACES
         } else {
             &ALL_FACES
         };
