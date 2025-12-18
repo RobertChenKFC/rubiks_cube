@@ -1,9 +1,9 @@
 use crate::color::{Color, ParsingErr};
 use crate::cube::{Cube, DisplayCube, NUM_FACES, RefCube};
 use crate::cube2;
-use crate::cube2::{Corner, CornerIndex, NUM_CORNERS};
+use crate::cube2::{Corner, CornerIndex, NUM_CORNERS, CORNER_INDICES};
 use crate::cube3;
-use crate::cube3::{CUBE3_SIZE, Cube3, Edge, EdgeIndex, NUM_EDGES};
+use crate::cube3::{CUBE3_SIZE, Cube3, Edge, EdgeIndex, NUM_EDGES, EDGE_INDICES};
 use crate::solver::{CubeTable, NaiveSolver, Solver};
 use crate::turn::{CubeFace, Direction, Turn, Turns};
 
@@ -156,16 +156,7 @@ impl Hasher for CubeHasher {
     }
 
     fn write(&mut self, bytes: &[u8]) {
-        // DEBUG
-        // println!("Bytes: {:?}", bytes);
-
         if bytes.len() == 10 {
-            /*
-            let mut buf = [0u8; 8];
-            let len = 8.min(bytes.len());
-            buf[..len].copy_from_slice(&bytes[..len]);
-            self.0 ^= u64::from_be_bytes(buf) ^ ((bytes[8] as u64) << 9) | ((bytes[9] as u64) << 1);
-            */
             let mut buf = [0u8; 16];
             let len = 16.min(bytes.len());
             buf[..len].copy_from_slice(&bytes[..len]);
@@ -263,6 +254,113 @@ impl RufCube3 {
         }
         bits & ((1 << size) - 1)
     }
+
+    pub fn apply_turn_ref(&mut self, turn: &Turn) {
+        let mut cube3: Cube3 = self.clone().into();
+        cube3.apply_turn(turn);
+        *self = cube3.into();
+    }
+
+    fn find_pos<T: Clone + Into<usize>>(table: &[T], elem: usize) -> usize {
+        for (pos, val) in table.iter().enumerate() {
+            let val: usize = val.clone().into();
+            if val == elem {
+                return pos;
+            }
+        }
+        panic!("Position not found");
+    }
+
+    fn find_cycle<T: Clone + Into<usize>>(permutation: &[usize], table: &[T]) -> [usize; 4]{
+        let mut cycle = [0; 4];
+        let mut cur = None;
+        for (pos, val) in permutation.iter().enumerate() {
+            if pos != *val {
+                cur = Some(pos);
+                cycle[0] = *val;
+                break;
+            }
+        }
+        for i in 1..4 {
+            for (pos, val) in permutation.iter().enumerate() {
+                if cur == Some(*val) {
+                    cur = Some(pos);
+                    cycle[i] = *val;
+                    break;
+                }
+            }
+        }
+        for val in &mut cycle {
+            *val = RufCube3::find_pos(table, *val);
+        }
+        cycle
+    }
+
+    pub fn gen_table() {
+        for turn in Cube3Solver::<_, RufCube3>::all_ruf_turns().iter() {
+            let mut cube = Cube3::new();
+            cube.apply_turn(turn);
+
+            let mut table = [0; 12];
+            let mut orientation = [0; 12];
+            for (pos, edge) in cube.edges.edges.iter().enumerate() {
+                table[pos] = edge.index as usize;
+                orientation[edge.index as usize] = edge.orientation as usize;
+            }
+            let cycle = RufCube3::find_cycle(&table, &RUF_EDGES);
+            let orientation: Vec<_> = cycle.iter().map(|index| orientation[RUF_EDGES[*index] as usize]).collect();
+            println!("Turn: {}, Edge Cycle: {:?}", turn, cycle);
+            println!("Turn: {}, Edge Orientation: {:?}", turn, orientation);
+
+            let mut table = [0; 8];
+            let mut orientation = [0; 8];
+            for (pos, corner) in cube.corners.corners.iter().enumerate() {
+                table[pos] = corner.index as usize;
+                orientation[corner.index as usize] = corner.orientation as usize;
+            }
+            let cycle = RufCube3::find_cycle(&table, &RUF_CORNERS);
+            let orientation: Vec<_> = cycle.iter().map(|index| orientation[RUF_CORNERS[*index] as usize]).collect();
+            println!("Turn: {}, Corner Cycle: {:?}", turn, cycle);
+            println!("Turn: {}, Corner Orientation: {:?}", turn, orientation);
+        }
+    }
+
+    fn orient<const MODULO: u8>(arr: &mut [u8], permutation: &[usize], orientation: &[u8]) {
+        for (pos, cur_orientation) in permutation.iter().zip(orientation) {
+            arr[*pos] = (arr[*pos] + cur_orientation) % MODULO;
+        }
+    }
+
+    fn permute(arr: &mut [u8], permutation: &[usize], dir: Direction) {
+        let a = permutation[0];
+        let b = permutation[1];
+        let c = permutation[2];
+        let d = permutation[3];
+        match dir {
+            Direction::Clockwise => {
+                let t = arr[d];
+                arr[d] = arr[c];
+                arr[c] = arr[b];
+                arr[b] = arr[a];
+                arr[a] = t;
+            },
+            Direction::Counterclockwise => {
+                let t = arr[a];
+                arr[a] = arr[b];
+                arr[b] = arr[c];
+                arr[c] = arr[d];
+                arr[d] = t;
+            },
+            Direction::Double => {
+                let t = arr[a];
+                arr[a] = arr[c];
+                arr[c] = t;
+                let t = arr[b];
+                arr[b] = arr[d];
+                arr[d] = t;
+            },
+        }
+    }
 }
 
 impl Cube<3> for RufCube3 {
@@ -276,9 +374,101 @@ impl Cube<3> for RufCube3 {
     }
 
     fn apply_turn(&mut self, turn: &Turn) {
-        let mut cube3: Cube3 = self.clone().into();
-        cube3.apply_turn(turn);
-        *self = cube3.into();
+        let mut buf = [0u8; 2];
+        buf.copy_from_slice(&self.bytes[0..2]);
+        let first_16_bits = u16::from_le_bytes(buf) as u64;
+        let mut buf = [0u8; 8];
+        buf.copy_from_slice(&self.bytes[2..10]);
+        let last_64_bits = u64::from_le_bytes(buf);
+
+        let mut edge_permutation = [0u8; NUM_RUF_EDGES];
+        let mut offset = 0;
+        for edge in &mut edge_permutation[0..4] {
+            *edge = ((first_16_bits >> offset) & RUF_EDGE_INDEX_MASK) as u8;
+            offset += RUF_EDGE_INDEX_SIZE;
+        }
+        let mut offset = 0;
+        for edge in &mut edge_permutation[4..9] {
+            *edge = ((last_64_bits >> offset) & RUF_EDGE_INDEX_MASK) as u8;
+            offset += RUF_EDGE_INDEX_SIZE;
+        }
+        // TODO: use the bitwise trick instead of storing them as u8 arrays
+        let mut edge_orientation = [0u8; NUM_RUF_EDGES];
+        for edge in &mut edge_orientation {
+            *edge = ((last_64_bits >> offset) & RUF_EDGE_ORIENTATION_MASK) as u8;
+            offset += RUF_EDGE_ORIENTATION_SIZE;
+        }
+
+        let mut corner_permutation = [0u8; NUM_RUF_CORNERS];
+        for corner in &mut corner_permutation {
+            *corner = ((last_64_bits >> offset) & RUF_CORNER_INDEX_MASK) as u8;
+            offset += RUF_CORNER_INDEX_SIZE;
+        }
+        let mut corner_orientation = [0u8; NUM_RUF_CORNERS];
+        for corner in &mut corner_orientation {
+            *corner = ((last_64_bits >> offset) & RUF_CORNER_ORIENTATION_MASK) as u8;
+            offset += RUF_CORNER_ORIENTATION_SIZE;
+        }
+
+        let edge_permutation_table = match turn.face {
+            CubeFace::Right => [5, 2, 7, 8],
+            CubeFace::Up => [1, 0, 3, 2],
+            CubeFace::Front => [4, 1, 5, 6],
+            _ => panic!("Invalid face for RUF cubes"),
+        };
+        let corner_permutation_table = match turn.face {
+            CubeFace::Right => [5, 1, 2, 6],
+            CubeFace::Up => [4, 3, 5, 6],
+            CubeFace::Front => [0, 4, 6, 2],
+            _ => panic!("Invalid face for RUF cubes"),
+        };
+        if turn.face != CubeFace::Up {
+            let edge_orientation_table = match turn.dir {
+                Direction::Clockwise => [0, 1, 0, 1],
+                Direction::Counterclockwise => [1, 0, 1, 0],
+                Direction::Double => [1, 1, 1, 1],
+            };
+            let corner_orientation_table = match turn.dir {
+                Direction::Clockwise => [1, 2, 1, 2],
+                Direction::Counterclockwise => [1, 2, 1, 2],
+                Direction::Double => [0, 0, 0, 0]
+            };
+            RufCube3::orient::<2>(&mut edge_orientation, &edge_permutation_table, &edge_orientation_table);
+            RufCube3::orient::<3>(&mut corner_orientation, &corner_permutation_table, &corner_orientation_table);
+        }
+
+        RufCube3::permute(&mut edge_permutation, &edge_permutation_table, turn.dir);
+        RufCube3::permute(&mut edge_orientation, &edge_permutation_table, turn.dir);
+        RufCube3::permute(&mut corner_permutation, &corner_permutation_table, turn.dir);
+        RufCube3::permute(&mut corner_orientation, &corner_permutation_table, turn.dir);
+
+        let mut offset = 0;
+        let mut first_16_bits = 0u16;
+        for edge in &edge_permutation[0..4] {
+            first_16_bits |= (*edge as u16) << offset;
+            offset += RUF_EDGE_INDEX_SIZE;
+        }
+        let mut offset = 0;
+        let mut last_64_bits = 0u64;
+        for edge in &edge_permutation[4..9] {
+            last_64_bits |= (*edge as u64) << offset;
+            offset += RUF_EDGE_INDEX_SIZE;
+        }
+        for edge in edge_orientation {
+            last_64_bits |= (edge as u64) << offset;
+            offset += RUF_EDGE_ORIENTATION_SIZE;
+        }
+        for corner in corner_permutation {
+            last_64_bits |= (corner as u64) << offset;
+            offset += RUF_CORNER_INDEX_SIZE;
+        }
+        for corner in corner_orientation {
+            last_64_bits |= (corner as u64) << offset;
+            offset += RUF_CORNER_ORIENTATION_SIZE;
+        }
+
+        self.bytes[0..2].copy_from_slice(&first_16_bits.to_le_bytes());
+        self.bytes[2..10].copy_from_slice(&last_64_bits.to_le_bytes());
     }
 }
 
@@ -287,18 +477,13 @@ impl From<Cube3> for RufCube3 {
         let mut cube: RufCube3 = Default::default();
 
         let edges = &cube3.edges.edges;
-        let mut positions = [0; NUM_EDGES];
-        for (pos, edge) in edges.iter().enumerate() {
-            positions[edge.index as usize] = pos;
-        }
-        for (i, edge) in RUF_EDGES.iter().enumerate() {
-            let pos = positions[*edge as usize];
+        for (i, pos) in RUF_EDGES.iter().enumerate() {
+            let edge = &edges[*pos as usize];
             cube.set_bits(
-                pos as u8,
+                edge.index as u8,
                 RUF_EDGE_INDEX_SIZE,
                 i * RUF_EDGE_INDEX_SIZE + RUF_EDGE_INDEX_OFFSET,
             );
-            let edge = &edges[pos];
             cube.set_bits(
                 edge.orientation as u8,
                 RUF_EDGE_ORIENTATION_SIZE,
@@ -307,18 +492,13 @@ impl From<Cube3> for RufCube3 {
         }
 
         let corners = &cube3.corners.corners;
-        let mut positions = [0; NUM_CORNERS];
-        for (pos, corner) in corners.iter().enumerate() {
-            positions[corner.index as usize] = pos;
-        }
-        for (i, corner) in RUF_CORNERS.iter().enumerate() {
-            let pos = positions[*corner as usize];
+        for (i, pos) in RUF_CORNERS.iter().enumerate() {
+            let corner = &corners[*pos as usize];
             cube.set_bits(
-                pos as u8,
+                corner.index as u8,
                 RUF_CORNER_INDEX_SIZE,
                 i * RUF_CORNER_INDEX_SIZE + RUF_CORNER_INDEX_OFFSET,
             );
-            let corner = &corners[pos];
             cube.set_bits(
                 corner.orientation as u8,
                 RUF_CORNER_ORIENTATION_SIZE,
@@ -335,8 +515,8 @@ impl From<RufCube3> for Cube3 {
         let mut cube3 = Cube3::new();
 
         let edges = &mut cube3.edges.edges;
-        for (i, index) in RUF_EDGES.iter().enumerate() {
-            let pos = cube.get_bits(
+        for (i, pos) in RUF_EDGES.iter().enumerate() {
+            let index = cube.get_bits(
                 RUF_EDGE_INDEX_SIZE,
                 i * RUF_EDGE_INDEX_SIZE + RUF_EDGE_INDEX_OFFSET,
             );
@@ -345,15 +525,15 @@ impl From<RufCube3> for Cube3 {
                 i * RUF_EDGE_ORIENTATION_SIZE + RUF_EDGE_ORIENTATION_OFFSET,
             );
             let orientation = cube3::ALL_ORIENTATIONS[orientation as usize];
-            edges[pos as usize] = Edge {
-                index: *index,
+            edges[*pos as usize] = Edge {
+                index: EDGE_INDICES[index as usize],
                 orientation,
             };
         }
 
         let corners = &mut cube3.corners.corners;
-        for (i, index) in RUF_CORNERS.iter().enumerate() {
-            let pos = cube.get_bits(
+        for (i, pos) in RUF_CORNERS.iter().enumerate() {
+            let index = cube.get_bits(
                 RUF_CORNER_INDEX_SIZE,
                 i * RUF_CORNER_INDEX_SIZE + RUF_CORNER_INDEX_OFFSET,
             );
@@ -362,8 +542,8 @@ impl From<RufCube3> for Cube3 {
                 i * RUF_CORNER_ORIENTATION_SIZE + RUF_CORNER_ORIENTATION_OFFSET,
             );
             let orientation = cube2::ALL_ORIENTATIONS[orientation as usize];
-            corners[pos as usize] = Corner {
-                index: *index,
+            corners[*pos as usize] = Corner {
+                index: CORNER_INDICES[index as usize],
                 orientation,
             };
         }

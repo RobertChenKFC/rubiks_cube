@@ -3,3 +3,5 @@
 flamegraph.svg
 perf.data*
 *.bin
+profile.sh
+install.sh

@@ -20,6 +20,12 @@ pub enum CornerIndex {
     URF = 7,
 }
 
+impl From<CornerIndex> for usize {
+    fn from(index: CornerIndex) -> usize {
+        index as usize
+    }
+}
+
 #[derive(Debug, PartialEq, Eq, Hash, Clone, Copy, Default)]
 pub enum Orientation {
     #[default]

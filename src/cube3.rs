@@ -25,8 +25,14 @@ pub enum EdgeIndex {
     BD,
 }
 
+impl From<EdgeIndex> for usize {
+    fn from(index: EdgeIndex) -> usize {
+        index as usize
+    }
+}
+
 pub const NUM_EDGES: usize = 12;
-const EDGE_INDICES: [EdgeIndex; NUM_EDGES] = [
+pub const EDGE_INDICES: [EdgeIndex; NUM_EDGES] = [
     EdgeIndex::UL,
     EdgeIndex::UF,
     EdgeIndex::UR,

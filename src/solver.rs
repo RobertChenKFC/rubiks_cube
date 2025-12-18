@@ -101,7 +101,13 @@ impl<const N: usize, C: Cube<N>, S: BuildHasher + Clone + Default>
                 io::stdout().flush().expect("Flush error");
             }
 
-            let (cube, cur_len) = queue.pop_front().unwrap();
+            // TODO: DFS is faster and uses less memory. However, it doesn't
+            // necessarily find the shortest path, which means that it may miss
+            // some cube states that are reachable in `len` turns. Investigate
+            // whether it's possible to use DFS.
+            // DEBUG
+            // let (cube, cur_len) = queue.pop_front().unwrap();
+            let (cube, cur_len) = queue.pop_back().unwrap();
             for turn in all_turns.iter() {
                 let mut cube = cube.clone();
                 cube.apply_turn(turn);
