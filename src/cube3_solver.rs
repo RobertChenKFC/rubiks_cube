@@ -1,9 +1,11 @@
 use crate::color::{Color, ParsingErr};
 use crate::cube::{Cube, DisplayCube, NUM_FACES, RefCube};
 use crate::cube2;
-use crate::cube2::{Corner, CornerIndex, NUM_CORNERS, CORNER_INDICES};
+use crate::cube2::{CORNER_INDICES, Corner, CornerIndex, NUM_CORNERS};
 use crate::cube3;
-use crate::cube3::{CUBE3_SIZE, Cube3, Edge, EdgeIndex, NUM_EDGES, EDGE_INDICES};
+use crate::cube3::{
+    CUBE3_SIZE, Cube3, EDGE_INDICES, Edge, EdgeIndex, NUM_EDGES,
+};
 use crate::solver::{CubeTable, NaiveSolver, Solver};
 use crate::turn::{CubeFace, Direction, Turn, Turns};
 
@@ -271,7 +273,10 @@ impl RufCube3 {
         panic!("Position not found");
     }
 
-    fn find_cycle<T: Clone + Into<usize>>(permutation: &[usize], table: &[T]) -> [usize; 4]{
+    fn find_cycle<T: Clone + Into<usize>>(
+        permutation: &[usize],
+        table: &[T],
+    ) -> [usize; 4] {
         let mut cycle = [0; 4];
         let mut cur = None;
         for (pos, val) in permutation.iter().enumerate() {
@@ -308,7 +313,10 @@ impl RufCube3 {
                 orientation[edge.index as usize] = edge.orientation as usize;
             }
             let cycle = RufCube3::find_cycle(&table, &RUF_EDGES);
-            let orientation: Vec<_> = cycle.iter().map(|index| orientation[RUF_EDGES[*index] as usize]).collect();
+            let orientation: Vec<_> = cycle
+                .iter()
+                .map(|index| orientation[RUF_EDGES[*index] as usize])
+                .collect();
             println!("Turn: {}, Edge Cycle: {:?}", turn, cycle);
             println!("Turn: {}, Edge Orientation: {:?}", turn, orientation);
 
@@ -316,16 +324,24 @@ impl RufCube3 {
             let mut orientation = [0; 8];
             for (pos, corner) in cube.corners.corners.iter().enumerate() {
                 table[pos] = corner.index as usize;
-                orientation[corner.index as usize] = corner.orientation as usize;
+                orientation[corner.index as usize] =
+                    corner.orientation as usize;
             }
             let cycle = RufCube3::find_cycle(&table, &RUF_CORNERS);
-            let orientation: Vec<_> = cycle.iter().map(|index| orientation[RUF_CORNERS[*index] as usize]).collect();
+            let orientation: Vec<_> = cycle
+                .iter()
+                .map(|index| orientation[RUF_CORNERS[*index] as usize])
+                .collect();
             println!("Turn: {}, Corner Cycle: {:?}", turn, cycle);
             println!("Turn: {}, Corner Orientation: {:?}", turn, orientation);
         }
     }
 
-    fn orient<const MODULO: u8>(arr: &mut [u8], permutation: &[usize], orientation: &[u8]) {
+    fn orient<const MODULO: u8>(
+        arr: &mut [u8],
+        permutation: &[usize],
+        orientation: &[u8],
+    ) {
         for (pos, cur_orientation) in permutation.iter().zip(orientation) {
             arr[*pos] = (arr[*pos] + cur_orientation) % MODULO;
         }
@@ -343,14 +359,14 @@ impl RufCube3 {
                 arr[c] = arr[b];
                 arr[b] = arr[a];
                 arr[a] = t;
-            },
+            }
             Direction::Counterclockwise => {
                 let t = arr[a];
                 arr[a] = arr[b];
                 arr[b] = arr[c];
                 arr[c] = arr[d];
                 arr[d] = t;
-            },
+            }
             Direction::Double => {
                 let t = arr[a];
                 arr[a] = arr[c];
@@ -358,7 +374,7 @@ impl RufCube3 {
                 let t = arr[b];
                 arr[b] = arr[d];
                 arr[d] = t;
-            },
+            }
         }
     }
 }
@@ -395,7 +411,8 @@ impl Cube<3> for RufCube3 {
         // TODO: use the bitwise trick instead of storing them as u8 arrays
         let mut edge_orientation = [0u8; NUM_RUF_EDGES];
         for edge in &mut edge_orientation {
-            *edge = ((last_64_bits >> offset) & RUF_EDGE_ORIENTATION_MASK) as u8;
+            *edge =
+                ((last_64_bits >> offset) & RUF_EDGE_ORIENTATION_MASK) as u8;
             offset += RUF_EDGE_ORIENTATION_SIZE;
         }
 
@@ -406,7 +423,8 @@ impl Cube<3> for RufCube3 {
         }
         let mut corner_orientation = [0u8; NUM_RUF_CORNERS];
         for corner in &mut corner_orientation {
-            *corner = ((last_64_bits >> offset) & RUF_CORNER_ORIENTATION_MASK) as u8;
+            *corner =
+                ((last_64_bits >> offset) & RUF_CORNER_ORIENTATION_MASK) as u8;
             offset += RUF_CORNER_ORIENTATION_SIZE;
         }
 
@@ -431,16 +449,40 @@ impl Cube<3> for RufCube3 {
             let corner_orientation_table = match turn.dir {
                 Direction::Clockwise => [1, 2, 1, 2],
                 Direction::Counterclockwise => [1, 2, 1, 2],
-                Direction::Double => [0, 0, 0, 0]
+                Direction::Double => [0, 0, 0, 0],
             };
-            RufCube3::orient::<2>(&mut edge_orientation, &edge_permutation_table, &edge_orientation_table);
-            RufCube3::orient::<3>(&mut corner_orientation, &corner_permutation_table, &corner_orientation_table);
+            RufCube3::orient::<2>(
+                &mut edge_orientation,
+                &edge_permutation_table,
+                &edge_orientation_table,
+            );
+            RufCube3::orient::<3>(
+                &mut corner_orientation,
+                &corner_permutation_table,
+                &corner_orientation_table,
+            );
         }
 
-        RufCube3::permute(&mut edge_permutation, &edge_permutation_table, turn.dir);
-        RufCube3::permute(&mut edge_orientation, &edge_permutation_table, turn.dir);
-        RufCube3::permute(&mut corner_permutation, &corner_permutation_table, turn.dir);
-        RufCube3::permute(&mut corner_orientation, &corner_permutation_table, turn.dir);
+        RufCube3::permute(
+            &mut edge_permutation,
+            &edge_permutation_table,
+            turn.dir,
+        );
+        RufCube3::permute(
+            &mut edge_orientation,
+            &edge_permutation_table,
+            turn.dir,
+        );
+        RufCube3::permute(
+            &mut corner_permutation,
+            &corner_permutation_table,
+            turn.dir,
+        );
+        RufCube3::permute(
+            &mut corner_orientation,
+            &corner_permutation_table,
+            turn.dir,
+        );
 
         let mut offset = 0;
         let mut first_16_bits = 0u16;
